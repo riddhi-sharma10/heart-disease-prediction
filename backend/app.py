@@ -3,6 +3,7 @@ from flask_cors import CORS
 import joblib
 import numpy as np
 from pymongo import MongoClient
+from pymongo.errors import ServerSelectionTimeoutError, OperationFailure
 from datetime import datetime
 from bson import ObjectId
 import os
@@ -12,11 +13,11 @@ app = Flask(__name__)
 CORS(app)
 
 # ─────────────────────────────────────────────
-# PATHS
+# PATHS  (all absolute so cwd never matters)
 # ─────────────────────────────────────────────
 BASE_DIR      = os.path.dirname(os.path.abspath(__file__))
 MODEL_DIR     = os.path.join(BASE_DIR, "..", "model")
-FALLBACK_FILE = os.path.join(BASE_DIR, "predictions_fallback.json")
+FALLBACK_FILE = os.path.join(BASE_DIR, "predictions_fallback.json")   # absolute path
 
 # ─────────────────────────────────────────────
 # LOAD SCALER & MODELS
@@ -35,11 +36,37 @@ except Exception as e:
     models = {}
 
 # ─────────────────────────────────────────────
-# MONGODB CONNECTION
+# DATABASE  — verbose diagnostics on failure
 # ─────────────────────────────────────────────
-client     = MongoClient("mongodb+srv://riddhisharma24cse_db_user:XG2nlw73JCWSVJvF@cluster0.msy8fkt.mongodb.net/?appName=Cluster0")
-db         = client["heartDB"]
-collection = db["predictions"]
+MONGO_URI = "mongodb+srv://riddhisharma24cse_db_user:XG2nlw73JCWSVJvF@cluster0.msy8fkt.mongodb.net/heartDB?retryWrites=true&w=majority&appName=Cluster0"
+USE_DB     = False
+collection = None
+_db_error  = ""          # store the reason so /health can report it
+
+try:
+    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=8000)
+    # Force an actual round-trip to Atlas to confirm connectivity
+    client.admin.command("ping")
+    db         = client["heartDB"]
+    collection = db["predictions"]
+    USE_DB     = True
+    print("✔ Connected to MongoDB Atlas")
+except ServerSelectionTimeoutError as e:
+    _db_error = (
+        "Cannot reach Atlas — check (1) your internet connection, "
+        "(2) that your IP is whitelisted in Atlas → Network Access, "
+        f"(3) credentials are correct.  Detail: {e}"
+    )
+    print(f"⚠  {_db_error}")
+    print(f"   Falling back to local file: {FALLBACK_FILE}")
+except OperationFailure as e:
+    _db_error = f"Atlas auth failed — bad username/password. Detail: {e}"
+    print(f"⚠  {_db_error}")
+    print(f"   Falling back to local file: {FALLBACK_FILE}")
+except Exception as e:
+    _db_error = str(e)
+    print(f"⚠  MongoDB error: {_db_error}")
+    print(f"   Falling back to local file: {FALLBACK_FILE}")
 
 
 # ─────────────────────────────────────────────
@@ -64,7 +91,7 @@ def _append_fallback(record):
 
 
 # ─────────────────────────────────────────────
-# SERIALIZER — makes MongoDB docs JSON-safe
+# SERIALIZER  — makes MongoDB docs JSON-safe
 # ─────────────────────────────────────────────
 def serialize(doc):
     out = {}
@@ -81,9 +108,10 @@ def serialize(doc):
 
 
 # ─────────────────────────────────────────────
-# NORMALISE — handles BOTH old & new records
-# Old format: { input_data:{age,sex,...}, prediction, probability, timestamp }
-# New format: { age, sex, ..., model_used, prediction, probability, timestamp }
+# NORMALISE  — handles BOTH old & new record formats
+#
+#  Old (2 days ago):  { input_data:{age,sex,...}, prediction, probability, timestamp }
+#  New (flat):        { age, sex, ..., model_used, prediction, probability, timestamp }
 # ─────────────────────────────────────────────
 FEATURE_KEYS = [
     "age", "sex", "cp", "trestbps", "chol",
@@ -92,16 +120,23 @@ FEATURE_KEYS = [
 ]
 
 def normalise_record(r):
+    # Lift nested input_data fields to root level (old format fix)
     if "age" not in r and "input_data" in r and isinstance(r.get("input_data"), dict):
         for k, v in r["input_data"].items():
             if k not in r:
                 r[k] = v
+
     r.pop("input_data", None)
+
+    # Guarantee all feature keys exist
     for key in FEATURE_KEYS:
         if key not in r:
             r[key] = None
+
+    # Guarantee model_used exists
     if "model_used" not in r:
         r["model_used"] = "unknown"
+
     return r
 
 
@@ -111,9 +146,36 @@ def normalise_record(r):
 @app.route("/")
 def home():
     return jsonify({
-        "status": "CardioScan API running ✔",
-        "models": list(models.keys()),
+        "status":   "CardioScan API running ✔",
+        "db":       "mongodb_atlas" if USE_DB else "local_json_file",
+        "db_error": _db_error if not USE_DB else None,
+        "models":   list(models.keys()),
+        "fallback": FALLBACK_FILE,
     })
+
+
+@app.route("/debug/db", methods=["GET"])
+def debug_db():
+    """
+    Diagnostic endpoint — call http://127.0.0.1:5000/debug/db from your browser
+    to see exactly why MongoDB is or isn't connected.
+    """
+    status = {
+        "USE_DB":       USE_DB,
+        "db_error":     _db_error,
+        "fallback_path": FALLBACK_FILE,
+        "fallback_exists": os.path.exists(FALLBACK_FILE),
+        "fallback_count": len(_read_fallback()),
+    }
+    if USE_DB and collection is not None:
+        try:
+            status["atlas_count"] = collection.count_documents({})
+            # Show a sample record (without _id) so you can inspect the format
+            sample = collection.find_one({}, {"_id": 0})
+            status["sample_record"] = serialize(sample) if sample else None
+        except Exception as e:
+            status["atlas_error"] = str(e)
+    return jsonify(status)
 
 
 @app.route("/predict", methods=["POST"])
@@ -150,18 +212,27 @@ def predict():
         record["probability"] = probability
         record["timestamp"]   = datetime.now().isoformat()
 
-        # Save to MongoDB, fallback to local file if it fails
-        try:
-            collection.insert_one(dict(record))
-            print(f"  ✔ MongoDB   model={model_name}  prob={probability:.3f}")
-        except Exception as db_err:
-            print(f"  ⚠ MongoDB write failed: {db_err} — saving to fallback")
+        # Persist
+        if USE_DB and collection is not None:
+            try:
+                collection.insert_one(dict(record))
+                stored_in = "mongodb_atlas"
+                print(f"  ✔ MongoDB   model={model_name}  prob={probability:.3f}")
+            except Exception as db_err:
+                # Atlas write failed mid-session — fall back gracefully
+                print(f"  ⚠ Atlas write failed: {db_err} — writing to fallback")
+                _append_fallback(record)
+                stored_in = "local_json_fallback"
+        else:
             _append_fallback(record)
+            stored_in = "local_json_fallback"
+            print(f"  ✔ Fallback  model={model_name}  prob={probability:.3f}")
 
         return jsonify({
             "prediction":  prediction,
             "probability": probability,
             "model_used":  model_name,
+            "stored_in":   stored_in,
         })
 
     except KeyError as e:
@@ -173,19 +244,33 @@ def predict():
 @app.route("/history", methods=["GET"])
 def history():
     try:
-        # Fetch from MongoDB — keep input_data so normalise_record() can lift old records
-        raw     = list(collection.find({}, {"_id": 0}))
-        records = [normalise_record(serialize(r)) for r in raw]
+        records = []
 
-        # Also merge any local fallback records (written during connectivity loss)
-        fallback_records = _read_fallback()
-        if fallback_records:
-            records.extend([normalise_record(r) for r in fallback_records])
+        if USE_DB and collection is not None:
+            # Exclude ONLY _id — keep input_data so normalise_record() can lift it
+            raw     = list(collection.find({}, {"_id": 0}))
+            records = [normalise_record(serialize(r)) for r in raw]
+            print(f"  /history → {len(records)} records from MongoDB Atlas")
+        else:
+            records = [normalise_record(r) for r in _read_fallback()]
+            print(f"  /history → {len(records)} records from local fallback")
 
-        # Sort by timestamp
-        records.sort(key=lambda r: r.get("timestamp") or "")
+        # ── MERGE: if fallback file also has records, include them too ──────
+        # This handles the case where some predictions went to Atlas and some
+        # to the local file (e.g. during connectivity loss).
+        if USE_DB and os.path.exists(FALLBACK_FILE):
+            fallback_records = _read_fallback()
+            if fallback_records:
+                normalised_fb = [normalise_record(r) for r in fallback_records]
+                records.extend(normalised_fb)
+                print(f"  /history → merged {len(fallback_records)} local fallback records too")
 
-        print(f"  /history → {len(records)} records")
+        # Sort by timestamp ascending (newest last) — tolerant of missing field
+        try:
+            records.sort(key=lambda r: r.get("timestamp") or "")
+        except Exception:
+            pass
+
         return jsonify(records)
 
     except Exception as e:
@@ -195,15 +280,23 @@ def history():
 
 @app.route("/health", methods=["GET"])
 def health():
+    count = 0
     try:
-        count = collection.count_documents({})
+        if USE_DB and collection is not None:
+            count = collection.count_documents({})
+        else:
+            count = len(_read_fallback())
     except Exception:
-        count = 0
+        pass
+
     return jsonify({
         "api":          "ok",
         "models":       list(models.keys()),
         "scaler":       scaler is not None,
+        "database":     "mongodb_atlas" if USE_DB else "local_json_file",
+        "db_error":     _db_error if not USE_DB else None,
         "record_count": count,
+        "fallback_path": FALLBACK_FILE,
     })
 
 
