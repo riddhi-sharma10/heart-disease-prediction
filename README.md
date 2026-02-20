@@ -1,4 +1,4 @@
-# 🫀 CardioScan — Heart Disease Risk Prediction System
+# 🫀 CardioScan - Heart Disease Risk Prediction System
 
 ![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=flat&logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-REST%20API-000000?style=flat&logo=flask&logoColor=white)
@@ -7,7 +7,7 @@
 ![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?style=flat&logo=mongodb&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat)
 
-> A full-stack machine learning system for real-time cardiac risk assessment — combining interpretable ML models, a Flask REST API, a visually refined Streamlit dashboard, and MongoDB-backed data persistence.
+> A full-stack machine learning system for real-time cardiac risk assessment - combining interpretable ML models, a Flask REST API, a visually refined Streamlit dashboard, and MongoDB-backed data persistence.
 
 ---
 
@@ -28,7 +28,7 @@
 
 ## 🔍 Overview
 
-**CardioScan** predicts the risk of heart disease using **13 clinical parameters**. It combines a Flask REST API backend with three trained ML classifiers, a Streamlit frontend dashboard, and MongoDB Atlas for persistent prediction storage — with automatic local JSON fallback if the database is unavailable.
+**CardioScan** predicts the risk of heart disease using **13 clinical parameters**. It combines a Flask REST API backend with three trained ML classifiers, a Streamlit frontend dashboard, and MongoDB Atlas for persistent prediction storage - with automatic local JSON fallback if the database is unavailable.
 
 Built with a focus on **backend architecture**, **ML pipeline engineering**, and a visually refined dark-themed medical dashboard UI.
 
@@ -46,7 +46,7 @@ Built with a focus on **backend architecture**, **ML pipeline engineering**, and
   - **Gradient Boosting Classifier**
 - Real-time inference with calibrated probability scores
 - `MinMaxScaler` normalization via saved `scaler.pkl`
-- Version-controlled `.pkl` model files — no retraining needed at startup
+- Version-controlled `.pkl` model files - no retraining needed at startup
 - Backward compatibility for old prediction record formats
 
 ---
@@ -71,7 +71,7 @@ A lightweight, production-style microservice that loads all models once for fast
 
 ---
 
-### 🎛️ Frontend — Streamlit Dashboard
+### 🎛️ Frontend - Streamlit Dashboard
 
 A modern dark-themed medical interface with custom CSS and Plotly visualizations.
 
@@ -95,7 +95,7 @@ A modern dark-themed medical interface with custom CSS and Plotly visualizations
 
 ### 🗄️ Database & Storage
 - **Primary:** MongoDB Atlas (cloud)
-- **Fallback:** `predictions_fallback.json` (local) — zero data loss if DB is unavailable
+- **Fallback:** `predictions_fallback.json` (local) - zero data loss if DB is unavailable
 - `/history` merges both sources so the UI always shows all predictions
 - Records stored flat at top-level for easy DataFrame processing on the frontend
 
@@ -184,9 +184,9 @@ This generates: `scaler.pkl`, `random_forest.pkl`, `logistic_regression.pkl`, `g
 
 ## ▶️ Running the Application
 
-> You need **two terminals running simultaneously** — one for Flask and one for Streamlit.
+> You need **two terminals running simultaneously** - one for Flask and one for Streamlit.
 
-### Terminal 1 — Start Flask Backend
+### Terminal 1 - Start Flask Backend
 ```bash
 cd backend
 python app.py
@@ -198,7 +198,7 @@ Expected output:
 * Running on http://127.0.0.1:5000
 ```
 
-### Terminal 2 — Start Streamlit Frontend
+### Terminal 2 - Start Streamlit Frontend
 ```bash
 cd frontend
 streamlit run app.py
@@ -276,4 +276,4 @@ https://archive.ics.uci.edu/dataset/45/heart+disease
 
 ---
 
-*Made with ❤️ by Riddhi Sharma · MIT License · © 2025 All Rights Reserved*
+*Made with ❤️ by Riddhi Sharma · © 2025 All Rights Reserved*
