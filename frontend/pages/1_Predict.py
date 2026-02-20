@@ -271,7 +271,7 @@ if predict_clicked:
     try:
         with st.spinner("Analyzing patient data…"):
             response = requests.post(
-                "https://heart-disease-prediction-lrve.onrender.com/predict",
+                "http://127.0.0.1:5000/predict",
                 json=data,
                 timeout=30
             )
@@ -312,16 +312,16 @@ if predict_clicked:
             )
 
     except Exception as e:
-        st.markdown(
-            f"""
-            <div style="background:rgba(220,38,38,0.08); border:1px solid rgba(220,38,38,0.25);
-                        border-radius:12px; padding:18px 22px; margin-top:20px;">
-                <p style="font-size:14px; color:#F87171; margin:0;">
-                    ⚠ Backend unreachable.<br><br>
-                    Tried: <code>https://heart-disease-prediction-lrve.onrender.com/predict</code><br><br>
-                    Error: <code>{str(e)}</code>
-                </p>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    st.markdown(
+        f"""
+        <div style="background:rgba(220,38,38,0.08); border:1px solid rgba(220,38,38,0.25);
+                    border-radius:12px; padding:18px 22px; margin-top:20px;">
+            <p style="font-size:14px; color:#F87171; margin:0;">
+                ⚠ Backend unreachable.<br><br>
+                Tried: <code>http://127.0.0.1:5000/predict</code><br><br>
+                Error: <code>{str(e)}</code>
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
