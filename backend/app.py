@@ -11,7 +11,7 @@ app = Flask(__name__)
 # LOAD SCALER
 # -----------------------------
 
-scaler = joblib.load("../model/scaler.pkl")
+scaler = joblib.load("../model/scaler.pkl")   # works
 
 # -----------------------------
 # MONGODB CONNECTION
