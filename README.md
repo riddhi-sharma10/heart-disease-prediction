@@ -40,7 +40,7 @@
 
 Built with a focus on **backend architecture**, **ML pipeline engineering**, and a visually refined dark-themed medical dashboard UI.
 
-> ⚡ This application is designed to run entirely on **localhost**. No cloud deployment is required.
+> ⚡ This application is designed to run entirely on **localhost**. No cloud deployment has been done here.
 
 ---
 
