@@ -254,7 +254,8 @@ with left:
     """, unsafe_allow_html=True)
 
 with right:
-    st.image("assets/heart_banner.png", use_container_width=True)
+    IMAGE_PATH = os.path.join("assets", "heart_banner.png")
+    st.image(IMAGE_PATH, use_container_width=True)
 
 st.markdown('<hr class="fancy-divider"/>', unsafe_allow_html=True)
 
