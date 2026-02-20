@@ -3,6 +3,7 @@ import requests
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import numpy as np
 
 st.set_page_config(page_title="CardioScan · Analytics", layout="wide", page_icon="📊")
 
@@ -36,15 +37,12 @@ html, body, [class*="css"] { font-family:'DM Sans',sans-serif; background-color:
 """, unsafe_allow_html=True)
 
 PLOT_CONFIG = dict(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                   font=dict(family='DM Sans',color='#64748B'), margin=dict(t=20,b=20,l=10,r=10))
+                   font=dict(family='DM Sans', color='#64748B'), margin=dict(t=20, b=20, l=10, r=10))
 GRID_STYLE  = dict(gridcolor='rgba(255,255,255,0.05)', zerolinecolor='rgba(255,255,255,0.05)')
 
 
 # ─────────────────────────────────────────────
 # CACHED DATA FETCH
-# ttl=30 → Streamlit reuses the result for 30 s instead of hitting
-# the Flask API on every widget interaction.  The "Refresh" button
-# below calls st.cache_data.clear() to force an immediate reload.
 # ─────────────────────────────────────────────
 @st.cache_data(ttl=30, show_spinner=False)
 def fetch_history():
@@ -58,7 +56,6 @@ st.markdown('<h1 class="hero-title">Cardiac Risk <span>Analytics</span></h1>', u
 st.markdown('<p class="hero-subtitle">Real-time overview of all prediction results and patient risk trends.</p>',
             unsafe_allow_html=True)
 
-# Refresh button so user can pull latest without navigating away
 if st.button("↻  Refresh data", type="secondary"):
     st.cache_data.clear()
     st.rerun()
@@ -136,50 +133,50 @@ with c1:
 
     fig_pie = go.Figure(go.Pie(
         labels=risk_counts["category"], values=risk_counts["count"], hole=0.6,
-        marker=dict(colors=["#34D399","#FBBF24","#F87171"],
-                    line=dict(color='#0D0F14',width=3)),
-        textfont=dict(family='DM Sans',size=13,color='#E8EAF0'),
+        marker=dict(colors=["#34D399", "#FBBF24", "#F87171"],
+                    line=dict(color='#0D0F14', width=3)),
+        textfont=dict(family='DM Sans', size=13, color='#E8EAF0'),
         hovertemplate="<b>%{label}</b><br>Count: %{value}<br>Share: %{percent}<extra></extra>",
     ))
     fig_pie.update_layout(**PLOT_CONFIG, height=300, showlegend=True,
-        legend=dict(orientation="v",x=1.0,y=0.5,font=dict(size=12,color='#94A3B8'),bgcolor='rgba(0,0,0,0)'),
+        legend=dict(orientation="v", x=1.0, y=0.5, font=dict(size=12, color='#94A3B8'), bgcolor='rgba(0,0,0,0)'),
         annotations=[dict(text=f"<b>{total}</b><br><span style='font-size:10px'>total</span>",
-                          x=0.5,y=0.5,font=dict(size=18,color='#F1F5F9',family='DM Serif Display'),showarrow=False)])
+                          x=0.5, y=0.5, font=dict(size=18, color='#F1F5F9', family='DM Serif Display'), showarrow=False)])
     st.plotly_chart(fig_pie, use_container_width=True)
 
 with c2:
     st.markdown('<p class="section-header">Risk Probability Over Time</p>', unsafe_allow_html=True)
     st.markdown('<p class="section-sub">Trend of individual prediction scores.</p>', unsafe_allow_html=True)
 
-    color_map = {"Low":"#34D399","Moderate":"#FBBF24","High":"#F87171"}
+    color_map = {"Low": "#34D399", "Moderate": "#FBBF24", "High": "#F87171"}
     fig_line  = go.Figure()
 
     fig_line.add_hrect(y0=0,   y1=0.3,  fillcolor="rgba(52,211,153,0.05)",  line_width=0)
     fig_line.add_hrect(y0=0.3, y1=0.6,  fillcolor="rgba(251,191,36,0.05)",  line_width=0)
     fig_line.add_hrect(y0=0.6, y1=1.0,  fillcolor="rgba(248,113,113,0.05)", line_width=0)
 
-    for val, col, lbl in [(0.3,"#34D399","Low/Moderate"), (0.6,"#F87171","Moderate/High")]:
+    for val, col, lbl in [(0.3, "#34D399", "Low/Moderate"), (0.6, "#F87171", "Moderate/High")]:
         fig_line.add_hline(y=val, line_dash="dot", line_color=col, line_width=1, opacity=0.4,
-                           annotation_text=lbl, annotation_font=dict(color=col,size=10),
+                           annotation_text=lbl, annotation_font=dict(color=col, size=10),
                            annotation_position="right")
 
     for cat, color in color_map.items():
         sub = df[df["risk_category"] == cat]
         fig_line.add_trace(go.Scatter(
             x=sub["timestamp"], y=sub["probability"], mode="markers", name=cat,
-            marker=dict(color=color,size=8,opacity=0.9,line=dict(color='#0D0F14',width=1.5)),
+            marker=dict(color=color, size=8, opacity=0.9, line=dict(color='#0D0F14', width=1.5)),
             hovertemplate=f"<b>{cat} Risk</b><br>%{{x|%b %d, %H:%M}}<br>Score: %{{y:.2%}}<extra></extra>",
         ))
     fig_line.add_trace(go.Scatter(
         x=df["timestamp"], y=df["probability"], mode="lines", name="Trend",
-        line=dict(color='rgba(255,255,255,0.12)',width=1.5), showlegend=False, hoverinfo='skip',
+        line=dict(color='rgba(255,255,255,0.12)', width=1.5), showlegend=False, hoverinfo='skip',
     ))
 
     fig_line.update_layout(**PLOT_CONFIG, height=300,
-        xaxis=dict(title=None,**GRID_STYLE,tickfont=dict(size=11)),
-        yaxis=dict(title="Risk Score",tickformat=".0%",**GRID_STYLE,range=[0,1],tickfont=dict(size=11)),
-        legend=dict(orientation="h",y=-0.15,x=0.5,xanchor='center',
-                    font=dict(size=12,color='#94A3B8'),bgcolor='rgba(0,0,0,0)'),
+        xaxis=dict(title=None, **GRID_STYLE, tickfont=dict(size=11)),
+        yaxis=dict(title="Risk Score", tickformat=".0%", **GRID_STYLE, range=[0, 1], tickfont=dict(size=11)),
+        legend=dict(orientation="h", y=-0.15, x=0.5, xanchor='center',
+                    font=dict(size=12, color='#94A3B8'), bgcolor='rgba(0,0,0,0)'),
         hovermode="x unified")
     st.plotly_chart(fig_line, use_container_width=True)
 
@@ -194,16 +191,44 @@ if "age" in df.columns and df["age"].notna().any():
         st.markdown('<p class="section-header">Age vs. Risk Score</p>', unsafe_allow_html=True)
         st.markdown('<p class="section-sub">Correlation between patient age and cardiac probability.</p>',
                     unsafe_allow_html=True)
-        fig_age = px.scatter(df.dropna(subset=["age"]), x="age", y="probability",
-            color="risk_category",
-            color_discrete_map={"Low":"#34D399","Moderate":"#FBBF24","High":"#F87171"},
-            trendline="ols", trendline_color_override="rgba(255,255,255,0.2)",
-            labels={"probability":"Risk Score","age":"Age"})
-        fig_age.update_traces(marker=dict(size=9,line=dict(color='#0D0F14',width=1.2)))
+
+        df_age = df.dropna(subset=["age"]).copy()
+        df_age["age"] = pd.to_numeric(df_age["age"], errors="coerce")
+        df_age = df_age.dropna(subset=["age"])
+
+        fig_age = go.Figure()
+
+        # Scatter points coloured by risk category — no statsmodels needed
+        for cat, color in {"Low": "#34D399", "Moderate": "#FBBF24", "High": "#F87171"}.items():
+            sub = df_age[df_age["risk_category"] == cat]
+            if len(sub) == 0:
+                continue
+            fig_age.add_trace(go.Scatter(
+                x=sub["age"], y=sub["probability"],
+                mode="markers", name=cat,
+                marker=dict(color=color, size=9, opacity=0.85,
+                            line=dict(color='#0D0F14', width=1.2)),
+                hovertemplate=f"<b>{cat}</b><br>Age: %{{x}}<br>Risk: %{{y:.2%}}<extra></extra>",
+            ))
+
+        # Manual OLS trendline using numpy — no statsmodels dependency
+        if len(df_age) >= 2:
+            x_vals = df_age["age"].values.astype(float)
+            y_vals = df_age["probability"].values.astype(float)
+            coeffs = np.polyfit(x_vals, y_vals, 1)
+            x_line = np.linspace(x_vals.min(), x_vals.max(), 100)
+            y_line = np.polyval(coeffs, x_line)
+            fig_age.add_trace(go.Scatter(
+                x=x_line, y=y_line,
+                mode="lines", name="Trend",
+                line=dict(color='rgba(255,255,255,0.2)', width=2, dash='dot'),
+                hoverinfo='skip', showlegend=False,
+            ))
+
         fig_age.update_layout(**PLOT_CONFIG, height=280,
-            xaxis=dict(**GRID_STYLE,tickfont=dict(size=11)),
-            yaxis=dict(tickformat=".0%",**GRID_STYLE,tickfont=dict(size=11)),
-            legend=dict(bgcolor='rgba(0,0,0,0)',font=dict(color='#94A3B8',size=11)))
+            xaxis=dict(title="Age", **GRID_STYLE, tickfont=dict(size=11)),
+            yaxis=dict(title="Risk Score", tickformat=".0%", **GRID_STYLE, tickfont=dict(size=11)),
+            legend=dict(bgcolor='rgba(0,0,0,0)', font=dict(color='#94A3B8', size=11)))
         st.plotly_chart(fig_age, use_container_width=True)
 
 if "chol" in df.columns and df["chol"].notna().any():
@@ -212,12 +237,11 @@ if "chol" in df.columns and df["chol"].notna().any():
         st.markdown('<p class="section-sub">Cholesterol levels segmented by risk category.</p>',
                     unsafe_allow_html=True)
         fig_chol = go.Figure()
-        for cat, color in {"Low":"#34D399","Moderate":"#FBBF24","High":"#F87171"}.items():
+        for cat, color in {"Low": "#34D399", "Moderate": "#FBBF24", "High": "#F87171"}.items():
             sub = df[df["risk_category"] == cat].dropna(subset=["chol"])
             if len(sub) == 0:
                 continue
-            # ✔ use proper rgba — not the broken .replace() pattern
-            h = color.lstrip('#')
+            h    = color.lstrip('#')
             fill = f"rgba({int(h[0:2],16)},{int(h[2:4],16)},{int(h[4:6],16)},0.15)"
             fig_chol.add_trace(go.Violin(
                 x=sub["risk_category"], y=sub["chol"], name=cat,
@@ -225,9 +249,9 @@ if "chol" in df.columns and df["chol"].notna().any():
                 fillcolor=fill, line_color=color, points="outliers",
             ))
         fig_chol.update_layout(**PLOT_CONFIG, height=280,
-            xaxis=dict(**GRID_STYLE,tickfont=dict(size=11)),
-            yaxis=dict(title="Cholesterol (mg/dl)",**GRID_STYLE,tickfont=dict(size=11)),
-            legend=dict(bgcolor='rgba(0,0,0,0)',font=dict(color='#94A3B8',size=11)),
+            xaxis=dict(**GRID_STYLE, tickfont=dict(size=11)),
+            yaxis=dict(title="Cholesterol (mg/dl)", **GRID_STYLE, tickfont=dict(size=11)),
+            legend=dict(bgcolor='rgba(0,0,0,0)', font=dict(color='#94A3B8', size=11)),
             violingap=0.3)
         st.plotly_chart(fig_chol, use_container_width=True)
 

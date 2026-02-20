@@ -1,1 +1,1 @@
-{"Logistic Regression": {"accuracy": 0.8852459016393442, "roc_auc": 0.9202586206896551}, "Random Forest": {"accuracy": 0.8852459016393442, "roc_auc": 0.9515086206896551}, "Gradient Boosting": {"accuracy": 0.8524590163934426, "roc_auc": 0.9321120689655172}}
+{"Logistic Regression": {"accuracy": 0.8852459016393442, "roc_auc": 0.9202586206896551}, "Random Forest": {"accuracy": 0.9016393442622951, "roc_auc": 0.9304956896551724}, "Gradient Boosting": {"accuracy": 0.8524590163934426, "roc_auc": 0.9331896551724138}}

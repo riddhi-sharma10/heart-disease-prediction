@@ -35,24 +35,11 @@ except Exception as e:
     models = {}
 
 # ─────────────────────────────────────────────
-# DATABASE
+# MONGODB CONNECTION
 # ─────────────────────────────────────────────
-USE_DB     = False
-collection = None
-
-try:
-    client = MongoClient(
-        "mongodb+srv://riddhisharma24cse_db_user:XG2nlw73JCWSVJvF@cluster0.msy8fkt.mongodb.net/?appName=Cluster0",
-        serverSelectionTimeoutMS=5000
-    )
-    client.server_info()
-    db         = client["heartDB"]
-    collection = db["predictions"]
-    USE_DB     = True
-    print("✔ Connected to MongoDB Atlas")
-except Exception as e:
-    print(f"⚠  MongoDB unavailable — using local fallback: {FALLBACK_FILE}")
-    print(f"   Reason: {e}")
+client     = MongoClient("mongodb+srv://riddhisharma24cse_db_user:XG2nlw73JCWSVJvF@cluster0.msy8fkt.mongodb.net/?appName=Cluster0")
+db         = client["heartDB"]
+collection = db["predictions"]
 
 
 # ─────────────────────────────────────────────
@@ -63,7 +50,8 @@ def _read_fallback():
         return []
     try:
         with open(FALLBACK_FILE, "r") as f:
-            return json.load(f)
+            data = json.load(f)
+            return data if isinstance(data, list) else []
     except Exception:
         return []
 
@@ -72,7 +60,7 @@ def _append_fallback(record):
     records = _read_fallback()
     records.append(record)
     with open(FALLBACK_FILE, "w") as f:
-        json.dump(records, f, indent=2)
+        json.dump(records, f, indent=2, default=str)
 
 
 # ─────────────────────────────────────────────
@@ -82,11 +70,11 @@ def serialize(doc):
     out = {}
     for k, v in doc.items():
         if k == "_id" or isinstance(v, ObjectId):
-            continue                          # drop _id / ObjectId entirely
+            continue
         elif isinstance(v, datetime):
             out[k] = v.isoformat()
         elif isinstance(v, dict):
-            out[k] = serialize(v)             # keep nested dicts (e.g. input_data)
+            out[k] = serialize(v)
         else:
             out[k] = v
     return out
@@ -94,6 +82,8 @@ def serialize(doc):
 
 # ─────────────────────────────────────────────
 # NORMALISE — handles BOTH old & new records
+# Old format: { input_data:{age,sex,...}, prediction, probability, timestamp }
+# New format: { age, sex, ..., model_used, prediction, probability, timestamp }
 # ─────────────────────────────────────────────
 FEATURE_KEYS = [
     "age", "sex", "cp", "trestbps", "chol",
@@ -102,34 +92,16 @@ FEATURE_KEYS = [
 ]
 
 def normalise_record(r):
-    """
-    Flatten a record so all 13 features always live at root level.
-
-    Old format  →  { input_data:{age,sex,...}, prediction, probability, timestamp }
-    New format  →  { age, sex, ..., model_used, prediction, probability, timestamp }
-
-    The critical bug was: the old /history query excluded input_data BEFORE
-    normalisation could read it, so all 14 records in MongoDB showed no features.
-
-    Fix: fetch with {"_id": 0} only (keep input_data), THEN lift it here.
-    """
-    # If root is missing features but input_data has them → lift to root
     if "age" not in r and "input_data" in r and isinstance(r.get("input_data"), dict):
         for k, v in r["input_data"].items():
-            if k not in r:          # never overwrite a real root-level value
+            if k not in r:
                 r[k] = v
-
-    r.pop("input_data", None)       # remove nested copy
-
-    # Guarantee all feature keys exist (None if genuinely missing)
+    r.pop("input_data", None)
     for key in FEATURE_KEYS:
         if key not in r:
             r[key] = None
-
-    # Guarantee model_used exists
     if "model_used" not in r:
         r["model_used"] = "unknown"
-
     return r
 
 
@@ -140,7 +112,6 @@ def normalise_record(r):
 def home():
     return jsonify({
         "status": "CardioScan API running ✔",
-        "db":     "mongodb" if USE_DB else "local_json_file",
         "models": list(models.keys()),
     })
 
@@ -172,20 +143,20 @@ def predict():
         prediction      = int(model.predict(features_scaled)[0])
         probability     = float(model.predict_proba(features_scaled)[0][1])
 
-        # Build flat record — NO nested input_data, ever
+        # Build flat record — NO nested input_data
         record = {k: data[k] for k in FEATURE_KEYS}
         record["model_used"]  = model_name
         record["prediction"]  = prediction
         record["probability"] = probability
         record["timestamp"]   = datetime.now().isoformat()
 
-        # Persist
-        if USE_DB and collection is not None:
+        # Save to MongoDB, fallback to local file if it fails
+        try:
             collection.insert_one(dict(record))
             print(f"  ✔ MongoDB   model={model_name}  prob={probability:.3f}")
-        else:
+        except Exception as db_err:
+            print(f"  ⚠ MongoDB write failed: {db_err} — saving to fallback")
             _append_fallback(record)
-            print(f"  ✔ Fallback  model={model_name}  prob={probability:.3f}")
 
         return jsonify({
             "prediction":  prediction,
@@ -202,27 +173,19 @@ def predict():
 @app.route("/history", methods=["GET"])
 def history():
     try:
-        if USE_DB and collection is not None:
-            # ╔══════════════════════════════════════════════════════╗
-            # ║  THE CRITICAL FIX                                    ║
-            # ║  Exclude ONLY _id — keep input_data in the result    ║
-            # ║  so normalise_record() can lift features to root.    ║
-            # ║                                                       ║
-            # ║  Old (broken): {"_id":0, "input_data":0}             ║
-            # ║   → removed input_data BEFORE normalisation could    ║
-            # ║     read it, so all 14 MongoDB records lost their     ║
-            # ║     age/sex/chol/... fields entirely.                 ║
-            # ║                                                       ║
-            # ║  New (fixed):  {"_id":0}                             ║
-            # ║   → input_data preserved, lifted to root, then       ║
-            # ║     removed by normalise_record().                   ║
-            # ╚══════════════════════════════════════════════════════╝
-            raw     = list(collection.find({}, {"_id": 0}))   # ← only exclude _id
-            records = [normalise_record(serialize(r)) for r in raw]
-        else:
-            records = [normalise_record(r) for r in _read_fallback()]
+        # Fetch from MongoDB — keep input_data so normalise_record() can lift old records
+        raw     = list(collection.find({}, {"_id": 0}))
+        records = [normalise_record(serialize(r)) for r in raw]
 
-        print(f"  /history → returning {len(records)} records")
+        # Also merge any local fallback records (written during connectivity loss)
+        fallback_records = _read_fallback()
+        if fallback_records:
+            records.extend([normalise_record(r) for r in fallback_records])
+
+        # Sort by timestamp
+        records.sort(key=lambda r: r.get("timestamp") or "")
+
+        print(f"  /history → {len(records)} records")
         return jsonify(records)
 
     except Exception as e:
@@ -232,18 +195,14 @@ def history():
 
 @app.route("/health", methods=["GET"])
 def health():
-    count = 0
     try:
-        count = (collection.count_documents({})
-                 if USE_DB and collection is not None
-                 else len(_read_fallback()))
+        count = collection.count_documents({})
     except Exception:
-        pass
+        count = 0
     return jsonify({
         "api":          "ok",
         "models":       list(models.keys()),
         "scaler":       scaler is not None,
-        "database":     "mongodb" if USE_DB else "local_json_file",
         "record_count": count,
     })
 
