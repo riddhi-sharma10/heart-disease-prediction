@@ -358,12 +358,14 @@ if predict_clicked:
             </div>
             """, unsafe_allow_html=True)
 
-    except Exception:
-        st.markdown("""
-        <div style="background:rgba(220,38,38,0.08); border:1px solid rgba(220,38,38,0.25);
-                    border-radius:12px; padding:18px 22px; margin-top:20px;">
-            <p style="font-size:14px; color:#F87171; margin:0;">
-                ⚠ &nbsp;Backend unreachable. Please start the Flask server at <code>http://127.0.0.1:5000</code> and try again.
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+    except Exception as e:
+    st.markdown(f"""
+    <div style="background:rgba(220,38,38,0.08); border:1px solid rgba(220,38,38,0.25);
+                border-radius:12px; padding:18px 22px; margin-top:20px;">
+        <p style="font-size:14px; color:#F87171; margin:0;">
+            ⚠ &nbsp;Backend unreachable.<br>
+            API tried: <code>https://heart-disease-prediction-lrve.onrender.com/predict</code><br><br>
+            Error: <code>{str(e)}</code>
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
