@@ -1,5 +1,11 @@
 # 🫀 CardioScan - Heart Disease Risk Prediction System
 
+<img width="1890" height="962" alt="Screenshot 2026-02-21 050128" src="https://github.com/user-attachments/assets/46b82b42-9c64-4b2c-95d9-8e34d21559b9" />
+
+<img width="1911" height="975" alt="Screenshot 2026-02-21 050038" src="https://github.com/user-attachments/assets/b479120f-a507-4570-bfdf-e35c34720ee9" />
+
+
+
 ![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=flat&logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-REST%20API-000000?style=flat&logo=flask&logoColor=white)
 ![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-FF4B4B?style=flat&logo=streamlit&logoColor=white)
