@@ -271,7 +271,7 @@ if predict_clicked:
 
     try:
         with st.spinner("Analyzing patient data…"):
-            response = requests.post("http://127.0.0.1:5000/predict", json=data)
+            response = requests.post("https://heart-disease-prediction-lrve.onrender.com/predict", json=data)
             result = response.json()
             probability = result["probability"]
             pct = probability * 100

@@ -185,7 +185,7 @@ st.markdown('<p class="hero-subtitle">Aggregated risk scores and temporal trends
 # DATA FETCH
 # ─────────────────────────────────────────────
 try:
-    response = requests.get("http://127.0.0.1:5000/history", timeout=5)
+    response = requests.get("https://heart-disease-prediction-lrve.onrender.com/history", timeout=5)
     records  = response.json()
 except Exception:
     st.markdown("""
