@@ -2,6 +2,8 @@
 
 <img width="1890" height="962" alt="Screenshot 2026-02-21 050128" src="https://github.com/user-attachments/assets/46b82b42-9c64-4b2c-95d9-8e34d21559b9" />
 
+<img width="1867" height="883" alt="Screenshot 2026-02-21 045955" src="https://github.com/user-attachments/assets/deca75f1-3905-4891-8715-a80b42634c9d" />
+
 <img width="1911" height="975" alt="Screenshot 2026-02-21 050038" src="https://github.com/user-attachments/assets/b479120f-a507-4570-bfdf-e35c34720ee9" />
 
 
