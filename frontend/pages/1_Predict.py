@@ -197,9 +197,9 @@ input[type="number"] {
 """, unsafe_allow_html=True)
 
 
-# ─────────────────────────────────────────────
-# HERO
-# ─────────────────────────────────────────────
+# ------------------------------------------------------------
+# HERO SECTION
+# ------------------------------------------------------------
 st.markdown('<div class="hero-badge">AI-Powered Cardiology</div>', unsafe_allow_html=True)
 st.markdown('<h1 class="hero-title">Heart Disease<br><span>Risk Prediction</span></h1>', unsafe_allow_html=True)
 st.markdown(
@@ -208,164 +208,120 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Model selector inline
+# Model selector
 model_choice = st.selectbox(
     "Prediction model",
     ["random_forest", "logistic_regression", "gradient_boosting"],
     label_visibility="collapsed"
 )
-st.markdown(f"<p style='font-size:12px; color:#475569; margin-top:6px;'>Model: <strong style='color:#94A3B8'>{model_choice.replace('_', ' ').title()}</strong></p>", unsafe_allow_html=True)
+
+st.markdown(
+    f"<p style='font-size:12px; color:#475569; margin-top:6px;'>Model: "
+    f"<strong style='color:#94A3B8'>{model_choice.replace('_', ' ').title()}</strong></p>",
+    unsafe_allow_html=True
+)
 
 st.markdown('<hr class="fancy-divider"/>', unsafe_allow_html=True)
 
 
-# ─────────────────────────────────────────────
-# PARAMETERS
-# ─────────────────────────────────────────────
+# ------------------------------------------------------------
+# INPUT FIELDS
+# ------------------------------------------------------------
 st.markdown('<p class="section-header">Patient Clinical Parameters</p>', unsafe_allow_html=True)
 st.markdown('<p class="section-sub">All fields are required for an accurate prediction.</p>', unsafe_allow_html=True)
 
 col1, col2, col3 = st.columns(3, gap="medium")
 
 with col1:
-    st.markdown('<div class="param-card"><p class="card-label">Demographics & Vitals</p>', unsafe_allow_html=True)
-    age       = st.number_input("Age", min_value=1, max_value=120, value=50)
-    sex       = st.selectbox("Sex", [1, 0], format_func=lambda x: "Male" if x == 1 else "Female")
-    trestbps  = st.number_input("Resting Blood Pressure (mmHg)", min_value=0, value=120)
-    chol      = st.number_input("Serum Cholesterol (mg/dl)", min_value=0, value=200)
-    fbs       = st.selectbox("Fasting Blood Sugar > 120 mg/dl", [1, 0], format_func=lambda x: "Yes" if x == 1 else "No")
-    st.markdown('</div>', unsafe_allow_html=True)
+    age = st.number_input("Age", min_value=1, max_value=120, value=50)
+    sex = st.selectbox("Sex", [1, 0], format_func=lambda x: "Male" if x == 1 else "Female")
+    trestbps = st.number_input("Resting Blood Pressure (mmHg)", min_value=0, value=120)
+    chol = st.number_input("Serum Cholesterol (mg/dl)", min_value=0, value=200)
+    fbs = st.selectbox("Fasting Blood Sugar > 120 mg/dl", [1, 0], format_func=lambda x: "Yes" if x == 1 else "No")
 
 with col2:
-    st.markdown('<div class="param-card"><p class="card-label">ECG & Exercise</p>', unsafe_allow_html=True)
-    cp        = st.slider("Chest Pain Type", 0, 3, help="0 = Typical angina, 1 = Atypical, 2 = Non-anginal, 3 = Asymptomatic")
-    restecg   = st.slider("Resting ECG Results", 0, 2, help="0 = Normal, 1 = ST-T abnormality, 2 = LV hypertrophy")
-    thalach   = st.number_input("Maximum Heart Rate Achieved", min_value=0, value=150)
-    exang     = st.selectbox("Exercise-Induced Angina", [1, 0], format_func=lambda x: "Yes" if x == 1 else "No")
-    oldpeak   = st.number_input("ST Depression (Oldpeak)", min_value=0.0, step=0.1, value=1.0)
-    st.markdown('</div>', unsafe_allow_html=True)
+    cp = st.slider("Chest Pain Type", 0, 3)
+    restecg = st.slider("Resting ECG Results", 0, 2)
+    thalach = st.number_input("Maximum Heart Rate Achieved", min_value=0, value=150)
+    exang = st.selectbox("Exercise-Induced Angina", [1, 0], format_func=lambda x: "Yes" if x == 1 else "No")
+    oldpeak = st.number_input("ST Depression (Oldpeak)", min_value=0.0, step=0.1, value=1.0)
 
 with col3:
-    st.markdown('<div class="param-card"><p class="card-label">Angiography & Thal</p>', unsafe_allow_html=True)
-    slope     = st.slider("Slope of Peak ST Segment", 0, 2, help="0 = Upsloping, 1 = Flat, 2 = Downsloping")
-    ca        = st.slider("Major Vessels Colored by Fluoroscopy", 0, 4)
-    thal      = st.slider("Thalassemia Type", 0, 3, help="0 = Normal, 1 = Fixed defect, 2 = Reversible defect, 3 = Unknown")
-    st.markdown('<br>', unsafe_allow_html=True)
-    st.markdown('<br>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    slope = st.slider("Slope of Peak ST Segment", 0, 2)
+    ca = st.slider("Major Vessels Colored by Fluoroscopy", 0, 4)
+    thal = st.slider("Thalassemia Type", 0, 3)
+
 
 st.markdown('<hr class="fancy-divider"/>', unsafe_allow_html=True)
 
 
-# ─────────────────────────────────────────────
-# PREDICT
-# ─────────────────────────────────────────────
+# ------------------------------------------------------------
+# PREDICTION
+# ------------------------------------------------------------
 predict_clicked = st.button("🔍  Run Cardiac Risk Analysis", use_container_width=True)
 
 if predict_clicked:
     data = {
         "age": age, "sex": sex, "cp": cp, "trestbps": trestbps, "chol": chol,
         "fbs": fbs, "restecg": restecg, "thalach": thalach, "exang": exang,
-        "oldpeak": oldpeak, "slope": slope, "ca": ca, "thal": thal
+        "oldpeak": oldpeak, "slope": slope, "ca": ca, "thal": thal,
+        "model": model_choice
     }
 
     try:
         with st.spinner("Analyzing patient data…"):
-            response = requests.post("https://heart-disease-prediction-lrve.onrender.com/predict", json=data)
+            response = requests.post(
+                "https://heart-disease-prediction-lrve.onrender.com/predict",
+                json=data,
+                timeout=30
+            )
             result = response.json()
             probability = result["probability"]
             pct = probability * 100
 
+        # SUCCESS UI
         st.markdown('<hr class="fancy-divider"/>', unsafe_allow_html=True)
         st.markdown('<p class="section-header">Prediction Summary</p>', unsafe_allow_html=True)
-        st.markdown('<p class="section-sub">Based on the provided clinical parameters.</p>', unsafe_allow_html=True)
 
-        g_col, r_col = st.columns([2, 1], gap="large")
+        col_g, col_r = st.columns([2, 1])
 
-        with g_col:
-            # Gauge chart
+        with col_g:
             fig = go.Figure(go.Indicator(
                 mode="gauge+number",
                 value=pct,
-                number={'suffix': "%", 'font': {'size': 40, 'color': '#F1F5F9', 'family': 'DM Serif Display'}},
-                title={'text': "Cardiovascular Risk Score", 'font': {'size': 14, 'color': '#64748B', 'family': 'DM Sans'}},
-                gauge={
-                    'axis': {'range': [0, 100], 'tickcolor': '#334155', 'tickfont': {'color': '#475569', 'size': 11}},
-                    'bar': {'color': "#E63946", 'thickness': 0.22},
-                    'bgcolor': 'rgba(0,0,0,0)',
-                    'borderwidth': 0,
-                    'steps': [
-                        {'range': [0,  30], 'color': 'rgba(16,185,129,0.15)'},
-                        {'range': [30, 60], 'color': 'rgba(245,158,11,0.15)'},
-                        {'range': [60,100], 'color': 'rgba(220,38,38,0.18)'},
-                    ],
-                    'threshold': {
-                        'line': {'color': '#F87171', 'width': 2},
-                        'thickness': 0.75,
-                        'value': pct
-                    }
-                }
+                number={'suffix': "%"},
+                gauge={'axis': {'range': [0, 100]}}
             ))
-            fig.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)',
-                margin=dict(t=30, b=10, l=20, r=20),
-                height=280,
-                font=dict(family='DM Sans')
-            )
             st.plotly_chart(fig, use_container_width=True)
 
-        with r_col:
-            st.markdown("<br><br>", unsafe_allow_html=True)
-
+        with col_r:
             if probability < 0.3:
-                st.markdown(f"""
-                <div class="result-low">
-                    <div class="result-level" style="color:#10B981;">● Low Risk</div>
-                    <div class="result-pct" style="color:#34D399;">{pct:.1f}%</div>
-                    <div class="result-desc">Cardiovascular risk appears low. Routine monitoring advised.</div>
-                </div>
-                """, unsafe_allow_html=True)
-
+                level = "Low Risk"
+                color = "#10B981"
             elif probability < 0.6:
-                st.markdown(f"""
-                <div class="result-moderate">
-                    <div class="result-level" style="color:#F59E0B;">◆ Moderate Risk</div>
-                    <div class="result-pct" style="color:#FCD34D;">{pct:.1f}%</div>
-                    <div class="result-desc">Elevated risk detected. Clinical follow-up recommended.</div>
-                </div>
-                """, unsafe_allow_html=True)
-
+                level = "Moderate Risk"
+                color = "#F59E0B"
             else:
-                st.markdown(f"""
-                <div class="result-high">
-                    <div class="result-level" style="color:#EF4444;">▲ High Risk</div>
-                    <div class="result-pct" style="color:#F87171;">{pct:.1f}%</div>
-                    <div class="result-desc">Significant cardiac risk detected. Urgent consultation advised.</div>
-                </div>
-                """, unsafe_allow_html=True)
+                level = "High Risk"
+                color = "#EF4444"
 
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown(f"""
-            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06);
-                        border-radius:12px; padding:16px 20px;">
-                <p style="font-size:11px; color:#475569; font-weight:600; letter-spacing:0.1em;
-                           text-transform:uppercase; margin-bottom:10px;">Model Details</p>
-                <p style="font-size:13px; color:#94A3B8; margin:0;">
-                    <span style="color:#64748B;">Algorithm:</span> {model_choice.replace('_', ' ').title()}<br>
-                    <span style="color:#64748B;">Confidence:</span> {max(pct, 100-pct):.1f}%
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(
+                f"<div class='result-high'><div class='result-level'>{level}</div>"
+                f"<div class='result-pct'>{pct:.1f}%</div></div>",
+                unsafe_allow_html=True
+            )
 
     except Exception as e:
-    st.markdown(f"""
-    <div style="background:rgba(220,38,38,0.08); border:1px solid rgba(220,38,38,0.25);
-                border-radius:12px; padding:18px 22px; margin-top:20px;">
-        <p style="font-size:14px; color:#F87171; margin:0;">
-            ⚠ &nbsp;Backend unreachable.<br>
-            API tried: <code>https://heart-disease-prediction-lrve.onrender.com/predict</code><br><br>
-            Error: <code>{str(e)}</code>
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+        st.markdown(
+            f"""
+            <div style="background:rgba(220,38,38,0.08); border:1px solid rgba(220,38,38,0.25);
+                        border-radius:12px; padding:18px 22px; margin-top:20px;">
+                <p style="font-size:14px; color:#F87171; margin:0;">
+                    ⚠ Backend unreachable.<br><br>
+                    Tried: <code>https://heart-disease-prediction-lrve.onrender.com/predict</code><br><br>
+                    Error: <code>{str(e)}</code>
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
