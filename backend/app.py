@@ -11,7 +11,7 @@ app = Flask(__name__)
 # LOAD SCALER
 # -----------------------------
 
-scaler = joblib.load("../model/scaler.pkl")   # works
+scaler = joblib.load("model/scaler.pkl")
 
 # -----------------------------
 # MONGODB CONNECTION
@@ -31,7 +31,7 @@ collection = db["predictions"]
 # -----------------------------
 
 def load_model(model_name):
-    model_path = f"../model/{model_name}.pkl"
+    model_path = f"model/{model_name}.pkl"
     if os.path.exists(model_path):
         return joblib.load(model_path)
     else:
