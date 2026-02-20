@@ -8,66 +8,88 @@ from datetime import datetime
 from bson import ObjectId
 import os
 import json
+import hashlib   # NEW ✔
 
 app = Flask(__name__)
 CORS(app)
 
 # ─────────────────────────────────────────────
-# PATHS  (all absolute so cwd never matters)
+# PATHS
 # ─────────────────────────────────────────────
-BASE_DIR      = os.path.dirname(os.path.abspath(__file__))
-MODEL_DIR     = os.path.join(BASE_DIR, "..", "model")
-FALLBACK_FILE = os.path.join(BASE_DIR, "predictions_fallback.json")   # absolute path
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_DIR = os.path.join(BASE_DIR, "..", "model")
+FALLBACK_FILE = os.path.join(BASE_DIR, "predictions_fallback.json")
 
 # ─────────────────────────────────────────────
-# LOAD SCALER & MODELS
+# SHA256 HASH FN — for version freezing
 # ─────────────────────────────────────────────
+def file_hash(path):
+    try:
+        with open(path, "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()
+    except:
+        return "missing"
+
+MODEL_VERSION_INFO = {}   # NEW ✔
+
+# ─────────────────────────────────────────────
+# LOAD SCALER & MODELS (FROZEN)
+# ─────────────────────────────────────────────
+def load_frozen_model(name, file_path):
+    """Load model, compute hash, freeze version info."""
+    model = joblib.load(file_path)
+    MODEL_VERSION_INFO[name] = {
+        "path": file_path,
+        "sha256": file_hash(file_path)
+    }
+    return model
+
 try:
     scaler = joblib.load(os.path.join(MODEL_DIR, "scaler.pkl"))
+
     models = {
-        "random_forest":       joblib.load(os.path.join(MODEL_DIR, "random_forest.pkl")),
-        "logistic_regression": joblib.load(os.path.join(MODEL_DIR, "logistic_regression.pkl")),
-        "gradient_boosting":   joblib.load(os.path.join(MODEL_DIR, "gradient_boosting.pkl")),
+        "random_forest": load_frozen_model(
+            "random_forest", os.path.join(MODEL_DIR, "random_forest.pkl")
+        ),
+        "logistic_regression": load_frozen_model(
+            "logistic_regression", os.path.join(MODEL_DIR, "logistic_regression.pkl")
+        ),
+        "gradient_boosting": load_frozen_model(
+            "gradient_boosting", os.path.join(MODEL_DIR, "gradient_boosting.pkl")
+        ),
     }
-    print("✔ Models loaded successfully")
+
+    print("\n✔ MODELS LOADED & FROZEN")
+    for m, info in MODEL_VERSION_INFO.items():
+        print(f"   {m}: {info['sha256']}")
+
 except Exception as e:
     print(f"✘ Error loading models: {e}")
     scaler = None
     models = {}
 
 # ─────────────────────────────────────────────
-# DATABASE  — verbose diagnostics on failure
+# DATABASE CONNECTION
 # ─────────────────────────────────────────────
-MONGO_URI = "mongodb+srv://riddhisharma24cse_db_user:XG2nlw73JCWSVJvF@cluster0.msy8fkt.mongodb.net/heartDB?retryWrites=true&w=majority&appName=Cluster0"
-USE_DB     = False
+MONGO_URI = (
+    "mongodb+srv://riddhisharma24cse_db_user:XG2nlw73JCWSVJvF"
+    "@cluster0.msy8fkt.mongodb.net/heartDB?retryWrites=true&w=majority&appName=Cluster0"
+)
+
+USE_DB = False
 collection = None
-_db_error  = ""          # store the reason so /health can report it
+_db_error = ""
 
 try:
     client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=8000)
-    # Force an actual round-trip to Atlas to confirm connectivity
     client.admin.command("ping")
-    db         = client["heartDB"]
+    db = client["heartDB"]
     collection = db["predictions"]
-    USE_DB     = True
+    USE_DB = True
     print("✔ Connected to MongoDB Atlas")
-except ServerSelectionTimeoutError as e:
-    _db_error = (
-        "Cannot reach Atlas — check (1) your internet connection, "
-        "(2) that your IP is whitelisted in Atlas → Network Access, "
-        f"(3) credentials are correct.  Detail: {e}"
-    )
-    print(f"⚠  {_db_error}")
-    print(f"   Falling back to local file: {FALLBACK_FILE}")
-except OperationFailure as e:
-    _db_error = f"Atlas auth failed — bad username/password. Detail: {e}"
-    print(f"⚠  {_db_error}")
-    print(f"   Falling back to local file: {FALLBACK_FILE}")
 except Exception as e:
     _db_error = str(e)
-    print(f"⚠  MongoDB error: {_db_error}")
-    print(f"   Falling back to local file: {FALLBACK_FILE}")
-
+    print("⚠ MongoDB unavailable → using fallback JSON file")
 
 # ─────────────────────────────────────────────
 # FALLBACK FILE HELPERS
@@ -77,41 +99,32 @@ def _read_fallback():
         return []
     try:
         with open(FALLBACK_FILE, "r") as f:
-            data = json.load(f)
-            return data if isinstance(data, list) else []
-    except Exception:
+            return json.load(f)
+    except:
         return []
 
-
 def _append_fallback(record):
-    records = _read_fallback()
-    records.append(record)
+    data = _read_fallback()
+    data.append(record)
     with open(FALLBACK_FILE, "w") as f:
-        json.dump(records, f, indent=2, default=str)
-
+        json.dump(data, f, indent=2)
 
 # ─────────────────────────────────────────────
-# SERIALIZER  — makes MongoDB docs JSON-safe
+# SERIALIZER
 # ─────────────────────────────────────────────
 def serialize(doc):
     out = {}
     for k, v in doc.items():
-        if k == "_id" or isinstance(v, ObjectId):
+        if k == "_id":
             continue
-        elif isinstance(v, datetime):
+        if isinstance(v, datetime):
             out[k] = v.isoformat()
-        elif isinstance(v, dict):
-            out[k] = serialize(v)
         else:
             out[k] = v
     return out
 
-
 # ─────────────────────────────────────────────
-# NORMALISE  — handles BOTH old & new record formats
-#
-#  Old (2 days ago):  { input_data:{age,sex,...}, prediction, probability, timestamp }
-#  New (flat):        { age, sex, ..., model_used, prediction, probability, timestamp }
+# NORMALISER
 # ─────────────────────────────────────────────
 FEATURE_KEYS = [
     "age", "sex", "cp", "trestbps", "chol",
@@ -120,185 +133,112 @@ FEATURE_KEYS = [
 ]
 
 def normalise_record(r):
-    # Lift nested input_data fields to root level (old format fix)
-    if "age" not in r and "input_data" in r and isinstance(r.get("input_data"), dict):
+    if "input_data" in r:
         for k, v in r["input_data"].items():
-            if k not in r:
-                r[k] = v
+            r[k] = v
+        r.pop("input_data", None)
 
-    r.pop("input_data", None)
+    for k in FEATURE_KEYS:
+        r.setdefault(k, None)
 
-    # Guarantee all feature keys exist
-    for key in FEATURE_KEYS:
-        if key not in r:
-            r[key] = None
-
-    # Guarantee model_used exists
-    if "model_used" not in r:
-        r["model_used"] = "unknown"
-
+    r.setdefault("model_used", "unknown")
     return r
-
 
 # ─────────────────────────────────────────────
 # ROUTES
 # ─────────────────────────────────────────────
+
 @app.route("/")
 def home():
     return jsonify({
-        "status":   "CardioScan API running ✔",
-        "db":       "mongodb_atlas" if USE_DB else "local_json_file",
-        "db_error": _db_error if not USE_DB else None,
-        "models":   list(models.keys()),
-        "fallback": FALLBACK_FILE,
+        "status": "CardioScan API running ✔",
+        "models": MODEL_VERSION_INFO,
+        "db": "mongodb_atlas" if USE_DB else "local_json",
     })
 
-
-@app.route("/debug/db", methods=["GET"])
-def debug_db():
-    """
-    Diagnostic endpoint — call http://127.0.0.1:5000/debug/db from your browser
-    to see exactly why MongoDB is or isn't connected.
-    """
-    status = {
-        "USE_DB":       USE_DB,
-        "db_error":     _db_error,
-        "fallback_path": FALLBACK_FILE,
-        "fallback_exists": os.path.exists(FALLBACK_FILE),
-        "fallback_count": len(_read_fallback()),
-    }
-    if USE_DB and collection is not None:
-        try:
-            status["atlas_count"] = collection.count_documents({})
-            # Show a sample record (without _id) so you can inspect the format
-            sample = collection.find_one({}, {"_id": 0})
-            status["sample_record"] = serialize(sample) if sample else None
-        except Exception as e:
-            status["atlas_error"] = str(e)
-    return jsonify(status)
-
+# NEW ✔
+@app.route("/model-info", methods=["GET"])
+def model_info():
+    return jsonify({
+        "status": "frozen_models",
+        "models": MODEL_VERSION_INFO
+    })
 
 @app.route("/predict", methods=["POST"])
 def predict():
-    if scaler is None or not models:
-        return jsonify({"error": "Models not loaded. Check model directory."}), 503
+    if scaler is None:
+        return jsonify({"error": "Models not loaded"}), 503
 
     try:
         data = request.get_json(force=True)
-        if not data:
-            return jsonify({"error": "No JSON body received."}), 400
 
-        # Resolve model
-        model_name = str(data.get("model", "random_forest")).strip()
+        # Identify model
+        model_name = data.get("model", "random_forest")
         if model_name not in models:
             model_name = "random_forest"
         model = models[model_name]
 
-        # Validate all 13 features present
-        missing = [k for k in FEATURE_KEYS if k not in data]
-        if missing:
-            return jsonify({"error": f"Missing fields: {missing}"}), 400
+        print(f"[PREDICT] Using model: {model_name} ({MODEL_VERSION_INFO[model_name]['sha256']})")
 
-        # Inference
-        features        = np.array([float(data[k]) for k in FEATURE_KEYS]).reshape(1, -1)
-        features_scaled = scaler.transform(features)
-        prediction      = int(model.predict(features_scaled)[0])
-        probability     = float(model.predict_proba(features_scaled)[0][1])
+        # Validate features
+        features = np.array([float(data[k]) for k in FEATURE_KEYS]).reshape(1, -1)
 
-        # Build flat record — NO nested input_data
+        feats_scaled = scaler.transform(features)
+        pred = int(model.predict(feats_scaled)[0])
+        prob = float(model.predict_proba(feats_scaled)[0][1])
+
         record = {k: data[k] for k in FEATURE_KEYS}
-        record["model_used"]  = model_name
-        record["prediction"]  = prediction
-        record["probability"] = probability
-        record["timestamp"]   = datetime.now().isoformat()
+        record["model_used"] = model_name
+        record["probability"] = prob
+        record["prediction"] = pred
+        record["timestamp"] = datetime.now().isoformat()
 
-        # Persist
-        if USE_DB and collection is not None:
+        # Save record
+        if USE_DB:
             try:
-                collection.insert_one(dict(record))
+                collection.insert_one(record)
                 stored_in = "mongodb_atlas"
-                print(f"  ✔ MongoDB   model={model_name}  prob={probability:.3f}")
-            except Exception as db_err:
-                # Atlas write failed mid-session — fall back gracefully
-                print(f"  ⚠ Atlas write failed: {db_err} — writing to fallback")
+            except:
                 _append_fallback(record)
-                stored_in = "local_json_fallback"
+                stored_in = "local_json"
         else:
             _append_fallback(record)
-            stored_in = "local_json_fallback"
-            print(f"  ✔ Fallback  model={model_name}  prob={probability:.3f}")
+            stored_in = "local_json"
 
         return jsonify({
-            "prediction":  prediction,
-            "probability": probability,
-            "model_used":  model_name,
-            "stored_in":   stored_in,
+            "prediction": pred,
+            "probability": prob,
+            "model_used": model_name,
+            "model_hash": MODEL_VERSION_INFO[model_name]["sha256"],
+            "stored_in": stored_in
         })
 
-    except KeyError as e:
-        return jsonify({"error": f"Missing field: {e}"}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-@app.route("/history", methods=["GET"])
+@app.route("/history")
 def history():
     try:
-        records = []
-
-        if USE_DB and collection is not None:
-            # Exclude ONLY _id — keep input_data so normalise_record() can lift it
-            raw     = list(collection.find({}, {"_id": 0}))
+        if USE_DB:
+            raw = list(collection.find({}, {"_id": 0}))
             records = [normalise_record(serialize(r)) for r in raw]
-            print(f"  /history → {len(records)} records from MongoDB Atlas")
         else:
-            records = [normalise_record(r) for r in _read_fallback()]
-            print(f"  /history → {len(records)} records from local fallback")
-
-        # ── MERGE: if fallback file also has records, include them too ──────
-        # This handles the case where some predictions went to Atlas and some
-        # to the local file (e.g. during connectivity loss).
-        if USE_DB and os.path.exists(FALLBACK_FILE):
-            fallback_records = _read_fallback()
-            if fallback_records:
-                normalised_fb = [normalise_record(r) for r in fallback_records]
-                records.extend(normalised_fb)
-                print(f"  /history → merged {len(fallback_records)} local fallback records too")
-
-        # Sort by timestamp ascending (newest last) — tolerant of missing field
-        try:
-            records.sort(key=lambda r: r.get("timestamp") or "")
-        except Exception:
-            pass
+            records = _read_fallback()
 
         return jsonify(records)
 
     except Exception as e:
-        print(f"  /history error: {e}")
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/health", methods=["GET"])
+@app.route("/health")
 def health():
-    count = 0
-    try:
-        if USE_DB and collection is not None:
-            count = collection.count_documents({})
-        else:
-            count = len(_read_fallback())
-    except Exception:
-        pass
-
     return jsonify({
-        "api":          "ok",
-        "models":       list(models.keys()),
-        "scaler":       scaler is not None,
-        "database":     "mongodb_atlas" if USE_DB else "local_json_file",
-        "db_error":     _db_error if not USE_DB else None,
-        "record_count": count,
-        "fallback_path": FALLBACK_FILE,
+        "api": "ok",
+        "models_loaded": list(models.keys()),
+        "frozen_hashes": MODEL_VERSION_INFO,
+        "db": "mongodb_atlas" if USE_DB else "local_json",
     })
-
 
 # ─────────────────────────────────────────────
 # RUN
