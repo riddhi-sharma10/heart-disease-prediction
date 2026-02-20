@@ -1,5 +1,4 @@
 import streamlit as st
-import os
 
 st.set_page_config(page_title="CardioScan · Home", layout="wide", page_icon="🫀")
 
@@ -227,7 +226,7 @@ with left:
     </div>
     <h1 class="hero-title">Predict cardiac risk<br>with <em>precision.</em></h1>
     <p class="hero-desc">
-        An end-to-end machine learning platform for assessing heart disease risk -
+        An end-to-end machine learning platform for assessing heart disease risk —
         combining interpretable models, real-time inference, and rich analytics in
         one clinical dashboard.
     </p>
@@ -255,8 +254,7 @@ with left:
     """, unsafe_allow_html=True)
 
 with right:
-    IMAGE_PATH = os.path.join("frontend", "assets", "heart_banner.png")
-    st.image(IMAGE_PATH, use_container_width=True)
+    st.image("assets/heart_banner.png", use_container_width=True)
 
 st.markdown('<hr class="fancy-divider"/>', unsafe_allow_html=True)
 
@@ -386,7 +384,7 @@ st.markdown("""
 <div class="nav-hint">
   <div class="nav-hint-icon">👈</div>
   <div class="nav-hint-text">
-    Use the <strong>sidebar</strong> to navigate between modules -
+    Use the <strong>sidebar</strong> to navigate between modules —
     Risk Prediction, Model Evaluation, Analytics Dashboard, and Model Comparison.
   </div>
 </div>

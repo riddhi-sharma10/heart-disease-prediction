@@ -1,0 +1,40 @@
+[
+  {
+    "age": 56,
+    "sex": 1,
+    "cp": 1,
+    "trestbps": 120,
+    "chol": 200,
+    "fbs": 1,
+    "restecg": 2,
+    "thalach": 150,
+    "exang": 1,
+    "oldpeak": 1.0,
+    "slope": 1,
+    "ca": 2,
+    "thal": 1,
+    "model_used": "random_forest",
+    "prediction": 0,
+    "probability": 0.41,
+    "timestamp": "2026-02-20T23:56:14.957690"
+  },
+  {
+    "age": 54,
+    "sex": 1,
+    "cp": 2,
+    "trestbps": 120,
+    "chol": 200,
+    "fbs": 1,
+    "restecg": 1,
+    "thalach": 180,
+    "exang": 1,
+    "oldpeak": 1.0,
+    "slope": 1,
+    "ca": 2,
+    "thal": 1,
+    "model_used": "random_forest",
+    "prediction": 0,
+    "probability": 0.18,
+    "timestamp": "2026-02-21T00:04:52.479867"
+  }
+]
